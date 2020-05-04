@@ -1,0 +1,179 @@
+---
+title: "Churn Rate in Telecom Industry"
+author: "Padikkal Suresh Jishnu Nair"
+date: "03/05/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#BRIEF SYNOPSIS
+
+All over the world, Numerous telecom companies are present. 
+To keep up in the competition and expand their business client have to invest in the market. But, due to increasing competition, company is facing severe loss of revenue and loss of potential customers. So, the client wants to find out the reasons of losing customers by measuring customer loyalty to regain the lost customers. 
+
+#DATA PREPROCESSING
+
+```{r}
+
+#loading the data
+
+setwd('J:/Jishnu')
+
+dat <- read.csv('bigml_59c28831336c6604c800002a.csv', header = T, stringsAsFactors = T)
+```
+
+#UNDERSTANDING THE STRUCTURE OF DATA
+
+```{r}
+summary(dat)
+
+head(dat, 15)
+
+str(dat)
+
+table(is.na(dat))
+```
+
+#LOADING VISUALIZATION LIBRARIES
+```{r}
+library(dplyr)
+library(ggplot2)
+```
+
+```{r}
+ggplot(data=dat, aes(x=reorder(state, -account.length), y=account.length, fill=churn)) + geom_bar(stat = 'identity') + theme_bw() +
+  labs(x = 'States', y = 'Total account length', title = 'Total accounts and churn rate per state') + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+The above bar plot shows that Maryland, New York, Michigan and Texas have the maximum negative churn rate (Churn Rate - true(blue))
+
+Another insight which the plot throws is that the state with the minimum negative churn rate is Iowa. 
+
+So its clear that we need to check what's going right in Iowa which makes it the state with least negative rate which could be implemented in the above mentioned maximum churn rate states.
+
+
+```{r}
+ggplot(dat, aes(account.length, fill = churn)) + geom_density(alpha = 0.5) 
+```
+
+
+#PREDICTORS CORRELATION PLOT
+```{r}
+library(corrplot)
+corr_matrix <- corrplot(cor(dat[sapply(dat, is.numeric)]))
+```
+
+
+#FORMATTING THE CLASS OF INDEPENDENT VARIABLES
+```{r}
+dat$total.day.calls <- as.numeric(dat$total.day.calls)
+
+dat$total.eve.calls <- as.numeric(dat$total.eve.calls)
+
+dat$total.night.calls <- as.numeric(dat$total.night.calls)
+
+dat$total.intl.calls <- as.numeric(dat$total.intl.calls)
+```
+
+
+#CREATING A NEW VARIABLE 
+```{r}
+dat$Total_Calls = (dat$total.day.calls + dat$total.eve.calls + dat$total.night.calls)
+
+dat$Total_Charge = (dat$total.day.charge + dat$total.eve.charge + dat$total.night.charge)
+```
+
+
+#VISUALIZATION PLOTS 
+```{r}
+ggplot(dat, aes(x=Total_Calls, y=Total_Charge, colour = churn)) +
+              scale_color_brewer(palette = 'Dark2') + 
+              geom_point() + geom_smooth(method = 'lm') + 
+              labs(x='Total Calls', y='Total Charge', title='Total Calls vs Charge Scatterplot') +
+              theme(panel.background = element_blank(), axis.line = element_line(color = 'black'))
+```
+
+```{r}
+ggplot(dat, aes(x=total.day.calls, y=total.day.charge, colour = churn)) +
+              scale_color_brewer(palette = 'Dark2') + 
+              geom_point() + geom_smooth(method = 'lm') + 
+              labs(x='Total Day Calls', y='Total Day Charge', title='Total Day Calls vs Day Charge Scatterplot') +
+              theme(panel.background = element_blank(), axis.line = element_line(color = 'black'))
+```
+
+```{r}
+ggplot(dat, aes(x=total.eve.calls, y=total.eve.charge, colour = churn)) +
+              scale_color_brewer(palette = 'Dark2') + 
+              geom_point() + geom_smooth(method = 'lm') + 
+              labs(x='Total Eve Calls', y='Total Eve Charge', title='Total Eve Calls vs Eve Charge Scatterplot') +
+              theme(panel.background = element_blank(), axis.line = element_line(color = 'black'))
+```
+
+```{r}
+ggplot(dat, aes(x=total.night.calls, y=total.night.charge, colour = churn)) +
+              scale_color_brewer(palette = 'Dark2') + 
+              geom_point() + geom_smooth(method = 'lm') + 
+              labs(x='Total Night Calls', y='Total Night Charge', title='Total Night Calls vs Night Charge Scatterplot') +
+              theme(panel.background = element_blank(), axis.line = element_line(color = 'black'))
+```
+
+
+#FEATURE SELECTION
+```{r}
+library(Boruta)
+
+set.seed(1234)
+
+boruta <- Boruta(churn~., data=dat, doTrace=2, maxRuns = 100)
+
+plot(boruta, las=2)
+```
+
+This plot shows that 13 variables (which are green in color) in this dataset are confirmed to be important which would improve the model's performance and accuracy. Rest of it could be ignored.
+
+
+#DATA SPLITTING FOR MODEL CREATION
+```{r}
+library(caTools)
+
+set.seed(123)
+
+split = sample.split(dat$churn, SplitRatio = 0.75)
+
+training_set = subset(dat, split == TRUE)
+
+test_set = subset(dat, split == FALSE)
+```
+
+
+#LOADING RANDOM FOREST LIBRARY 
+```{r}
+library(randomForest)
+```
+
+
+#BUILDING RANDOM FOREST MODEL
+```{r}
+model <- randomForest(churn ~ customer.service.calls + international.plan
+                      + total.day.minutes + total.day.charge + total.intl.calls
+                      + total.intl.charge + total.intl.minutes + voice.mail.plan
+                      + number.vmail.messages + total.eve.minutes                                     + total.eve.charge
+                      + total.night.minutes + total.night.charge, data =                              training_set)
+```
+
+
+#PREDICTING THE MODEL BY USING THE TEST SET
+```{r}
+prediction <- predict(model,test_set[-21], type='class')
+```
+
+
+#CONFUSION MATRIX TO CHECK ACCURACY, SPECIFICITY AND SENSITIVITY
+```{r}
+library(caret)
+
+confusionMatrix(prediction, test_set$churn)
+```
