@@ -67,7 +67,44 @@ ggplot(dat, aes(x=total.night.calls, y=total.night.charge, colour = churn)) +
               geom_point() + geom_smooth(method = 'lm') + 
               labs(x='Total Night Calls', y='Total Night Charge', title='Total Night Calls vs Night Charge Scatterplot') +
               theme(panel.background = element_blank(), axis.line = element_line(color = 'black'))
-})
+
+library(Boruta)
+
+set.seed(1234)
+
+boruta <- Boruta(churn~., data=dat, doTrace=2, maxRuns = 100)
+
+plot(boruta, las=2)
+
+library(caTools)
+
+set.seed(123)
+
+split = sample.split(dat$churn, SplitRatio = 0.75)
+
+training_set = subset(dat, split == TRUE)
+
+test_set = subset(dat, split == FALSE)
+
+
+library(randomForest)
+
+model <- randomForest(churn ~ customer.service.calls + international.plan
+                      + total.day.minutes + total.day.charge + total.intl.calls
+                      + total.intl.charge + total.intl.minutes + voice.mail.plan
+                      + number.vmail.messages + total.eve.minutes + total.eve.charge
+                      + total.night.minutes + total.night.charge, data = training_set)
+summary(model)
+str(model)
+
+prediction <- predict(model,test_set[-21], type='class')
+
+library(caret)
+
+cm <- confusionMatrix(prediction, test_set$churn)
+
+cm
+
 
 
 
